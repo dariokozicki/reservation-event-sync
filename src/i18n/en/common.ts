@@ -1,0 +1,30 @@
+const messages = {
+  appTitle: 'Reservation Sync · Pentice',
+  appDescription: 'Reservation event simulation, state inspection, and confirmation delivery.',
+  brand: 'PENTICE',
+  home: 'Pentice Reservation Sync home',
+  skip: 'Skip to content',
+  environment: 'Simulation environment',
+  workspace: 'Workspace',
+  refresh: 'Refresh',
+  retry: 'Try again',
+  back: 'Back to reservations',
+  reservationId: 'RESERVATION / {id}',
+  guests: '{count, plural, one {# guest} other {# guests}}',
+  acceptedEmails: '{count, plural, one {# email accepted} other {# emails accepted}}',
+  attempts: '{count, plural, one {# attempt} other {# attempts}}',
+  unknown: 'Unknown',
+  fields: {
+    version: 'Version',
+    status: 'Status',
+    guestName: 'Guest name',
+    guestEmail: 'Email',
+    property: 'Property',
+    checkIn: 'Check-in',
+    checkOut: 'Check-out',
+    guests: 'Guests',
+    cancellationReason: 'Cancellation reason',
+  },
+};
+
+export default messages;

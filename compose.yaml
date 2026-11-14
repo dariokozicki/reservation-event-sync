@@ -1,0 +1,134 @@
+name: reservation-event-sync
+
+x-app: &app
+  build: .
+  image: reservation-event-sync:local
+  environment:
+    DATABASE_URL: postgres://reservation:reservation@db:5432/reservation_sync
+    NEXT_TELEMETRY_DISABLED: '1'
+    APP_BASE_URL: ${APP_BASE_URL:-http://localhost:${APP_PORT:-3000}}
+  init: true
+
+services:
+  db:
+    image: postgres:17-bookworm
+    ports:
+      - '127.0.0.1:${DB_PORT:-55432}:5432'
+    environment:
+      POSTGRES_USER: reservation
+      POSTGRES_PASSWORD: reservation
+      POSTGRES_DB: reservation_sync
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reservation -d reservation_sync']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *app
+    command: ['npm', 'run', 'db:migrate']
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    ports:
+      - '127.0.0.1:${APP_PORT:-3000}:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  worker:
+    <<: *app
+    command: ['npm', 'run', 'worker']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  checks:
+    <<: *app
+    build:
+      context: .
+      target: source
+    image: reservation-event-sync:checks
+    profiles: ['tools']
+    command: ['npm', 'run', 'check']
+
+  integration:
+    <<: *app
+    build:
+      context: .
+      target: source
+    image: reservation-event-sync:checks
+    profiles: ['tools']
+    command: ['npm', 'run', 'test:integration']
+    environment:
+      DATABASE_URL: postgres://reservation:reservation@test-db:5432/reservation_test
+    depends_on:
+      test-db:
+        condition: service_healthy
+
+  test-db:
+    image: postgres:17-bookworm
+    profiles: ['tools']
+    environment:
+      POSTGRES_USER: reservation
+      POSTGRES_PASSWORD: reservation
+      POSTGRES_DB: reservation_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reservation -d reservation_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  stress:
+    <<: *app
+    build:
+      context: .
+      target: source
+    image: reservation-event-sync:checks
+    profiles: ['tools']
+    command: ['npm', 'run', 'stress']
+    environment:
+      DATABASE_URL: postgres://reservation:reservation@stress-db:5432/reservation_stress
+      STRESS_SEED: ${STRESS_SEED:-42}
+      STRESS_RESERVATIONS: ${STRESS_RESERVATIONS:-50}
+      STRESS_CONCURRENCY: ${STRESS_CONCURRENCY:-8}
+    volumes:
+      - ./artifacts/stress:/app/reports
+    depends_on:
+      stress-db:
+        condition: service_healthy
+
+  stress-db:
+    image: postgres:17-bookworm
+    profiles: ['tools']
+    environment:
+      POSTGRES_USER: reservation
+      POSTGRES_PASSWORD: reservation
+      POSTGRES_DB: reservation_stress
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reservation -d reservation_stress']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:

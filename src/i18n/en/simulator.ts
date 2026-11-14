@@ -1,0 +1,26 @@
+const messages = {
+  eyebrow: 'EVENT SOURCE',
+  title: 'Send a simulation',
+  simulationMode: 'Simulation mode',
+  scenarios: 'Scenarios',
+  createReservation: 'Create reservation',
+  scenario: 'Scenario',
+  deliveryOrder: 'DELIVERY ORDER',
+  sendingEvents: 'Sending events…',
+  runScenario: 'Run scenario',
+  runNote: 'Each run creates a separate reservation.',
+  guestName: 'Guest name',
+  email: 'Email',
+  property: 'Property',
+  parklineTheLoop: 'Parkline · The Loop',
+  count1000mGrantPark: '1000M · Grant Park',
+  avenirRiverWest: 'Avenir · River West',
+  avraWestLoop: 'Avra · West Loop',
+  checkIn: 'Check-in',
+  checkOut: 'Check-out',
+  guests: 'Guests',
+  creating: 'Creating…',
+  createPendingReservation: 'Create pending reservation',
+};
+
+export default messages;
