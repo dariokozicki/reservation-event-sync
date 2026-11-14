@@ -1,5 +1,36 @@
 # Validation record
 
+## Relational reservation model
+
+The local domain model now lives in typed `reservations` columns rather than `streams.local` JSONB.
+The migration creates the table, backfills existing values, then removes the old column.
+It preserves the API's `local` object and the existing transactional email behavior.
+
+The production build, formatting, ESLint/file limits, TypeScript, and 37 unit tests passed.
+The expanded PostgreSQL suite passed 25 integration tests (62 tests total). Six added cases cover
+pre-creation event tracking, overview/detail consistency, database constraints for version/status/
+guest count/date ordering, and migration backfill of pending, confirmed, and cancelled reservations.
+
+The running demo was backed up and its old web/worker processes stopped before migration. All 21
+existing reservation values matched afterward (16 confirmed, 4 cancelled, 1 pending), as did every
+tracking row, source event, inbox entry, delivery, confirmation, provider receipt, and email attempt.
+The migrated dashboard displayed the existing reservations correctly. An HTTP gap-recovery smoke
+test created a new pending v1 reservation, delivered missing v2, reached confirmed v3, and accepted
+one email with a working reservation-page link. The main database was not reset.
+
+CodeRabbit completed an independent review of the 15-file normalization diff and raised zero issues.
+
+The repeated 100-reservation stress run (seed 2026, concurrency 8) passed: 360 unique events,
+1,075 deliveries, 715 duplicates, 80 expected/accepted emails, and 99 attempts. There were no
+conflicts, blocked events, or mismatches. Ingestion took 2,554 ms; total time was 99,882 ms.
+
+A fresh tracked-source export built and started in Windows PowerShell on ports 3005/55437 with
+a new database. Its gap-recovery smoke test and port-specific reservation email link passed.
+The official Linux Docker CLI container then ran the documented checks and integration commands
+against that clean project: 37 unit and 25 integration tests passed. As before, this verifies a
+Linux shell/client against Docker Desktop's Linux engine, not a separate native Linux host.
+Disposable verification services were removed; the migrated main web/database remained healthy.
+
 ## Tailwind and internationalization quality pass
 
 The UI now uses Tailwind utilities and shared controls. Only the Tailwind import/theme stylesheet
@@ -97,7 +128,9 @@ Approximate elapsed-time breakdown, reconstructed from chat timestamps (includes
 | 16:21-16:59 |  38 min | Architecture discussion, DBeaver, State pattern, manual tests, freeze check  |
 | 16:59-17:35 |  36 min | Detail page, stress runner, Tailwind/i18n, quality fixes, clean setup checks |
 | 17:35-17:58 |  23 min | Webhook explanation, diagram review, final PDF audit, provider research      |
-| From 17:58  | Ongoing | Single-editor assumption, time correction, commit and remote handoff         |
+| 17:58-18:00 |   2 min | Single-editor assumption, time correction, commit and remote handoff         |
+| 18:00-18:15 |  15 min | Source ZIP, table explanation, and domain-storage design discussion          |
+| 18:15-18:23 |   8 min | Reservation-table migration, preservation checks, tests, review and handoff  |
 
 Elapsed time at the commit request was about 2 hours 46 minutes. These are wall-clock phases,
 not separately measured active coding time. Initial files were created at 15:52; the original

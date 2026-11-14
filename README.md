@@ -102,7 +102,7 @@ Simulated PMS (source_events + source snapshot)
     ▼
 Next.js API → Zod → PostgreSQL inbox
     │ per-reservation transaction lock; drain consecutive versions
-    ├─ local reservation view
+    ├─ reservations table (typed domain columns)
     └─ first confirmation marker + pg-boss job (same transaction)
                                   │
                            separate Node worker
@@ -114,6 +114,17 @@ Next.js API → Zod → PostgreSQL inbox
 The inbox retains unique events; the delivery log retains repeated attempts. A transaction-scoped
 advisory lock serializes each reservation, including when creation has not arrived yet. Unrelated
 reservations can proceed independently. Database uniqueness protects event IDs and reservation/version.
+
+`reservations` stores the local domain model in typed columns: status, version, guest details, stay
+dates, guest count, and cancellation reason. PostgreSQL checks enforce status, positive version,
+guest-count limits, and checkout after check-in. `streams` only tracks identities and simulator
+metadata, including the simulated source JSON. It can exist before the creation event arrives;
+the domain reservation row is inserted only when creation is applied. The API still calls the
+assembled domain object `local` for source/local comparison; it is not a JSON database column.
+
+Migration `0001_normalize_reservations` backfills existing `streams.local` values into the domain
+table before removing that column. Stop old web/worker processes before applying this upgrade;
+the initial migration is retained so a fresh checkout follows the same migration history.
 
 pg-boss is the transactional outbox and retry mechanism. A permanent confirmation marker prevents
 reenqueueing after queue history expires. Queue job retention is not business idempotency.

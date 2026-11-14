@@ -1,7 +1,8 @@
 import { and, eq, or, sql } from 'drizzle-orm';
 import { fromDrizzle } from 'pg-boss';
 import { db } from '../db/client';
-import { confirmations, deliveries, inbox, streams } from '../db/schema';
+import { confirmations, deliveries, inbox, reservations, streams } from '../db/schema';
+import { toReservation } from '../db/reservation-mapping';
 import { fingerprint } from '../domain/fingerprint';
 import { confirmationFor } from '../domain/confirmation';
 import { applyEvent, DomainError } from '../domain/reservation';
@@ -33,8 +34,8 @@ async function scheduleConfirmation(tx: Transaction, state: Reservation) {
 }
 
 async function drain(tx: Transaction, id: string): Promise<SyncResult> {
-  const stream = await tx.query.streams.findFirst({ where: eq(streams.id, id) });
-  let state = stream?.local ?? null;
+  const row = await tx.query.reservations.findFirst({ where: eq(reservations.id, id) });
+  let state = toReservation(row);
   const appliedVersions: number[] = [];
   while (true) {
     const next = await tx.query.inbox.findFirst({
@@ -52,7 +53,11 @@ async function drain(tx: Transaction, id: string): Promise<SyncResult> {
       return { outcome: 'blocked', appliedVersions, message: error.message };
     }
     if (next.event.type === 'confirmed') await scheduleConfirmation(tx, state);
-    await tx.update(streams).set({ local: state }).where(eq(streams.id, id));
+    const values = { ...state, cancellationReason: state.cancellationReason ?? null };
+    await tx.insert(reservations).values(values).onConflictDoUpdate({
+      target: reservations.id,
+      set: values,
+    });
     await tx
       .update(inbox)
       .set({ state: 'applied', appliedAt: new Date(), error: null })

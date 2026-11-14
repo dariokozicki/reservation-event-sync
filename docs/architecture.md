@@ -12,7 +12,8 @@ flowchart TD
   end
   subgraph Postgres[PostgreSQL: persistent demo volume]
     History[Source events, inbox, delivery history]
-    State[Local state and permanent confirmation marker]
+    State[reservations: typed domain columns]
+    Confirmations[Permanent confirmation marker and frozen email]
     Jobs[pg-boss jobs]
     Receipts[Simulated provider receipts and attempts]
   end
@@ -27,12 +28,13 @@ flowchart TD
   API --> Sync
   Sync --> History
   Sync --> State
+  Sync --> Confirmations
   Sync --> Producer
   Producer --> Jobs
   Jobs --> Consumer
   Consumer --> Provider
   Provider --> Receipts
-  Consumer --> State
+  Consumer --> Confirmations
 ```
 
 Inbox updates, reservation state, the first-confirmation marker, and job enqueue share one transaction.
@@ -52,3 +54,22 @@ concurrent workload. `integration` uses another isolated database, `test-db`. Ne
 
 Authentication is deliberately absent in this localhost demo. A real reservation page and its APIs
 must authenticate the visitor and enforce reservation-level authorization before returning any data.
+
+## Domain storage and event tracking
+
+`reservations` is the local domain model. It has typed status, version, guest, property, date, guest
+count, and cancellation columns. Date ordering, guest limits, status, and positive version have
+database CHECK constraints. Drizzle maps SQL dates to calendar-date strings without timezone shifts.
+
+`streams` holds event-stream identity and simulator metadata; its source JSON represents the fake
+external PMS. An inbox event may arrive before creation, so its foreign key targets this tracking
+row. There is no incomplete domain reservation until creation is processed. Overview queries use
+a left join to keep these waiting streams visible. Detail reads retain repeatable-read consistency.
+
+Raw event payloads and immutable email payloads remain JSONB: those represent received messages,
+not the mutable local reservation model. The State pattern still computes transitions in memory;
+the sync transaction persists the resulting fields into `reservations` and enqueues any email.
+
+Migration 0001 backfills the old local JSON before dropping `streams.local`. It runs transactionally
+through the existing Drizzle migrator. This is a stop-the-app upgrade, not a rolling migration:
+the old application requires the removed column and must stop before the migration runs.

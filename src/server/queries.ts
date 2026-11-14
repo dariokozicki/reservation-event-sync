@@ -1,18 +1,26 @@
 import { asc, count, desc, eq } from 'drizzle-orm';
 import { db } from '../db/client';
-import { deliveries, receipts, streams } from '../db/schema';
+import { deliveries, receipts, reservations, streams } from '../db/schema';
+import { toReservation } from '../db/reservation-mapping';
 
 export async function overview() {
-  const [reservations, reservationCount, deliveryCount, duplicateCount, emailCount] =
-    await Promise.all([
-      db.select().from(streams).orderBy(desc(streams.createdAt)).limit(100),
-      db.select({ value: count() }).from(streams),
-      db.select({ value: count() }).from(deliveries),
-      db.select({ value: count() }).from(deliveries).where(eq(deliveries.outcome, 'duplicate')),
-      db.select({ value: count() }).from(receipts),
-    ]);
+  const [rows, reservationCount, deliveryCount, duplicateCount, emailCount] = await Promise.all([
+    db
+      .select({ stream: streams, reservation: reservations })
+      .from(streams)
+      .leftJoin(reservations, eq(streams.id, reservations.id))
+      .orderBy(desc(streams.createdAt))
+      .limit(100),
+    db.select({ value: count() }).from(streams),
+    db.select({ value: count() }).from(deliveries),
+    db.select({ value: count() }).from(deliveries).where(eq(deliveries.outcome, 'duplicate')),
+    db.select({ value: count() }).from(receipts),
+  ]);
   return {
-    reservations,
+    reservations: rows.map(({ stream, reservation }) => ({
+      ...stream,
+      local: toReservation(reservation),
+    })),
     totals: {
       reservations: reservationCount[0].value,
       deliveries: deliveryCount[0].value,
@@ -27,6 +35,9 @@ export async function detail(id: string) {
     async (tx) => {
       const stream = await tx.query.streams.findFirst({ where: eq(streams.id, id) });
       if (!stream) return null;
+      const reservation = await tx.query.reservations.findFirst({
+        where: eq(reservations.id, id),
+      });
       const events = await tx.query.sourceEvents.findMany({
         where: (table, { eq }) => eq(table.reservationId, id),
         orderBy: (table) => asc(table.version),
@@ -53,6 +64,7 @@ export async function detail(id: string) {
       });
       return {
         ...stream,
+        local: toReservation(reservation),
         events,
         inbox,
         deliveries,

@@ -14,7 +14,7 @@ export function setupDatabase() {
     await getBoss();
     await db.execute(sql`
       truncate email_attempts, provider_receipts, confirmations, deliveries,
-      inbox, source_events, streams, pgboss.job cascade
+      inbox, source_events, reservations, streams, pgboss.job cascade
     `);
   });
   afterAll(async () => {

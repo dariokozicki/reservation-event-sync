@@ -71,6 +71,17 @@ optional host tooling; update its port if using that tooling with a custom datab
 
 ## Stop and data persistence
 
+When upgrading an existing demo from the original JSONB schema, stop its old application processes
+before applying the new migration. Existing reservations, email payloads, and receipts are preserved:
+
+```sh
+docker compose stop web worker
+docker compose up --build -d
+```
+
+Migration `0001_normalize_reservations` backfills the typed `reservations` table before removing
+`streams.local`. Do not use `down -v` for an upgrade. The migration is not rolling-deployment safe.
+
 ```sh
 docker compose down
 ```

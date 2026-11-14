@@ -1,5 +1,22 @@
-import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import type { EmailPayload, FaultMode, Reservation, ReservationEvent } from '../types/domain';
+import { sql } from 'drizzle-orm';
+import {
+  check,
+  date,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import type {
+  EmailPayload,
+  FaultMode,
+  Reservation,
+  ReservationEvent,
+  ReservationStatus,
+} from '../types/domain';
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).defaultNow().notNull();
 
@@ -7,10 +24,36 @@ export const streams = pgTable('streams', {
   id: uuid('id').primaryKey(),
   scenario: text('scenario').notNull().default('external'),
   source: jsonb('source').$type<Reservation>(),
-  local: jsonb('local').$type<Reservation>(),
   fault: text('fault').$type<FaultMode>().notNull().default('none'),
   createdAt: createdAt(),
 });
+
+export const reservations = pgTable(
+  'reservations',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .references(() => streams.id),
+    version: integer('version').notNull(),
+    status: text('status').$type<ReservationStatus>().notNull(),
+    guestName: text('guest_name').notNull(),
+    guestEmail: text('guest_email').notNull(),
+    property: text('property').notNull(),
+    checkIn: date('check_in', { mode: 'string' }).notNull(),
+    checkOut: date('check_out', { mode: 'string' }).notNull(),
+    guests: integer('guests').notNull(),
+    cancellationReason: text('cancellation_reason'),
+  },
+  (table) => [
+    check('reservation_version_positive', sql`${table.version} >= 1`),
+    check(
+      'reservation_status_valid',
+      sql`${table.status} in ('pending', 'confirmed', 'cancelled')`,
+    ),
+    check('reservation_guest_count_valid', sql`${table.guests} between 1 and 12`),
+    check('reservation_dates_valid', sql`${table.checkOut} > ${table.checkIn}`),
+  ],
+);
 
 export const sourceEvents = pgTable(
   'source_events',

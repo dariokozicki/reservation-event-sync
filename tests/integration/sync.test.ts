@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client';
-import { confirmations, inbox, streams } from '../../src/db/schema';
+import { confirmations, inbox, reservations } from '../../src/db/schema';
 import { buildScenario } from '../../src/domain/scenarios';
 import { ingest } from '../../src/server/sync';
 import { detail } from '../../src/server/queries';
@@ -139,7 +139,7 @@ describe('PostgreSQL synchronization', () => {
       where: eq(confirmations.reservationId, id),
     });
     expect(email?.payload.to).toBe('alex@example.com');
-    const stream = await db.query.streams.findFirst({ where: eq(streams.id, id) });
-    expect(stream?.local?.guestEmail).toBe('changed@example.com');
+    const row = await db.query.reservations.findFirst({ where: eq(reservations.id, id) });
+    expect(row?.guestEmail).toBe('changed@example.com');
   });
 });

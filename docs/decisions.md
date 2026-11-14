@@ -59,6 +59,11 @@ The email worker retries with the same provider key and frozen payload. Provider
 recorded separately from worker acknowledgement, allowing the ambiguous-success failure demo.
 Queue retention is not used as a permanent business deduplication mechanism.
 
+Local reservation state uses a relational `reservations` table, with database constraints on status,
+version, guest count, and dates. The earlier JSONB local-state column is migrated into those typed
+columns. `streams` remains the pre-creation tracking identity and simulator metadata. This separates
+the domain model from received event history while keeping out-of-order arrivals inspectable.
+
 Reservation lifecycle behavior uses the State pattern: awaiting creation, pending, confirmed,
 and cancelled handlers implement one typed interface. Shared update/cancellation behavior lives in
 the existing-reservation base state. The event dispatcher checks sequence and identity once, then
